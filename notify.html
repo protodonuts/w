@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>提醒</title>
+</head>
+
+<body>
+    <p>
+        标题
+        <input id="title" type="text" value="久坐提醒">
+    </p>
+    <p>
+        内容
+        <textarea id="content">多喝热水</textarea>
+    </p>
+    <p>
+        间隔
+        <input type="number" id="intervalMin" min="2" value="40" max="999"> minutes
+    </p>
+    <p>
+        你不点我我待会儿继续提醒你
+        <input type="number" id="pendingSec" value="60" max="300"> seconds
+    </p>
+    <button onclick="start()">start</button>
+    <button onclick="stop()">stop</button>
+    <button onclick="clean()">clean</button>
+    <pre id="log"></pre>
+    <script>
+        'use strict';
+        var start, stop;
+
+        const notifications = [];
+
+        function clean() {
+            let i;
+            while (!!(i = notifications.pop())) {
+                try {
+                    i.close();
+                } catch (e) {
+                    console.error(e);
+                }
+            }
+        }
+
+        function log(text) {
+            const el = document.getElementById('log')
+            el.textContent =
+                `[${new Date().toLocaleString()}] ${text}\n` + el.textContent;
+        }
+
+        (async function () {
+            let ppermission = await Notification.requestPermission();
+            if (ppermission !== 'granted') log('permission not granted')
+
+            function getParams() {
+                const title = document.getElementById('title').value;
+                const content = document.getElementById('content').value;
+                const intervalMin = Number(document.getElementById('intervalMin').value);
+                if (intervalMin < 1) throw 'err';
+                const pendingSec = Number(document.getElementById('pendingSec').value);
+                if (pendingSec === 0) pendingSec = -1;
+                return { title, content, intervalMin, pendingSec };
+            }
+
+
+            let intervalCode = null;
+
+            stop = function () {
+                if (intervalCode !== null) {
+                    clearInterval(intervalCode);
+                    intervalCode = null;
+                }
+                log('stopped');
+                clean();
+            }
+
+            start = async function () {
+                if (ppermission !== 'granted') {
+                    ppermission = await Notification.requestPermission();
+                    return;
+                }
+                const { title, content, intervalMin, pendingSec } = getParams();
+                if (intervalCode !== null) {
+                    stop();
+                }
+                intervalCode = setInterval(
+                    () => {
+                        let count = 0;
+                        let lastIntervalCode = undefined;
+                        const n = new Notification(title, { body: content });
+                        log('notified')
+
+                        if (pendingSec > 0) {
+                            let pendings = setInterval(() => {
+                                if (lastIntervalCode === undefined) lastIntervalCode = intervalCode;
+                                else if (lastIntervalCode !== intervalCode) {
+                                    clearInterval(pendings);
+                                    return;
+                                }
+                                const pn = new Notification(title, { body: content });
+
+                                log('pending notified ' + count++);
+                                if (count >= 5) {
+                                    clearInterval(pendings);
+                                }
+
+                                pn.onclick = () => {
+                                    clearInterval(pendings);
+                                    pn.close()
+                                };
+                                notifications.push(pn);
+                            }, pendingSec * 1000);
+
+                            n.onclick = () => {
+                                clearInterval(pendings);
+                                n.close();
+                            }
+                        } else {
+                            n.onclick = () => n.close();
+                        }
+                        notifications.push(n);
+                    },
+                    intervalMin * 60 * 1000
+                );
+                log(`start interval notification every ${intervalMin} min`)
+            }
+        })();
+
+    </script>
+</body>
+
+</html>
