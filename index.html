@@ -1,0 +1,15 @@
+<ol id="list" style="list-style-type: hiragana-iroha;"></ol>
+<script>
+const url = 'https://api.github.com/repos/protodonuts/w/contents/';
+const list = document.getElementById('list');
+(async function () {
+  const res = await fetch(url);
+  if (!res.ok) throw 'res not ok ' + res.statusCode;
+  const contents = await res.json();
+  for (const i of contents) {
+    if (i.name.endsWith('.html')) {
+      list.innerHTML += `<li><a href="/w/${i.path}">${i.name}</a></li>`;
+    }
+  }
+})();
+</script>
